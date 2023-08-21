@@ -3,7 +3,7 @@ import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
 // https://electron-react-boilerplate.js.org/docs/styling#tailwind-integration
 import Pane from 'components/pane';
 import { allProviders } from 'lib/constants';
-import React from 'react';
+import React, { useState } from 'react';
 import Split from 'react-split';
 import 'tailwindcss/tailwind.css';
 import { getEnabledProviders } from 'lib/utils';
@@ -40,6 +40,11 @@ export default function Layout() {
 	const [superprompt, setSuperprompt] = React.useState('');
 	const [paneList, setPaneList] = React.useState(storedPaneList);
 	const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+
+	// Voice Recorder Specific State
+	const [recording, setRecording] = useState(false);
+	const [audioUrl, setAudioUrl] = useState('');
+	const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder>();
 
 	const originalAlwaysOnTop = window.electron.browserWindow.getAlwaysOnTop();
 	const [isAlwaysOnTop, setisAlwaysOnTop] = React.useState(originalAlwaysOnTop);
@@ -99,6 +104,39 @@ export default function Layout() {
 			provider.handleSubmit();
 		});
 	}
+
+	const startRecording = () => {
+		navigator.mediaDevices.getUserMedia({ audio: true })
+			.then(stream => {
+				const recorder = new MediaRecorder(stream);
+				const audioChunks = [];
+
+				recorder.addEventListener("dataavailable", event => {
+					audioChunks.push(event.data);
+				});
+
+				recorder.addEventListener("stop", () => {
+					const audioBlob = new Blob(audioChunks);
+					const url = URL.createObjectURL(audioBlob);
+					console.log("Final Recording was: ", url)
+					setAudioUrl(url);
+				});
+
+				recorder.start();
+				setRecording(true);
+				setMediaRecorder(recorder);
+			}).catch(err => {
+				console.log(err)
+			})
+	};
+
+	const stopRecording = () => {
+		if (!mediaRecorder) {
+			return
+		}
+		mediaRecorder.stop();
+		setRecording(false);
+	};
 
 	function enterKeyHandler(event: React.KeyboardEvent<HTMLTextAreaElement>) {
 		const isCmdOrCtrl = event.metaKey || event.ctrlKey;
@@ -235,7 +273,7 @@ export default function Layout() {
 				ref={formRef}
 				id="form"
 				className=""
-				// onKeyDown={handleSubmit}
+			// onKeyDown={handleSubmit}
 			>
 				<div id="form-wrapper">
 					<textarea
@@ -325,6 +363,14 @@ export default function Layout() {
 								></path>
 							</svg>
 						</button> */}
+						{recording ? <button
+							onClick={stopRecording}>
+							Stop Recording
+						</button> : <button
+							onClick={startRecording}>
+							Start Recording
+						</button>}
+						{audioUrl && <audio src={audioUrl} id="audioPlayer" controls></audio>}
 						<button
 							className="flex items-center justify-center w-12 h-12 p-1 text-white transition bg-gray-600 rounded-lg shadow-inner hover:bg-gray-200"
 							id="btn"
